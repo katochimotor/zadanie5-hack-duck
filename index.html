@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>School 21 — Level 2 Quest Solver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#000;--bg2:#0a0a0a;--bg3:#111;--green:#00ff41;--green2:#00cc33;--amber:#ffb800;--amber2:#ff6600;--red:#ff0040;--emerald:#00ff88;--gray:#666;--gray2:#888;--code-bg:#0d1117;--font-pixel:'Press Start 2P',monospace;--font-mono:'JetBrains Mono',monospace;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--green);font-family:var(--font-mono);font-size:14px;line-height:1.6;overflow-x:hidden;min-height:100vh;}
+body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,65,.03) 2px,rgba(0,255,65,.03) 4px);pointer-events:none;z-index:9999;}
+
+/* Boot */
+#boot-screen{position:fixed;inset:0;background:var(--bg);z-index:10000;display:flex;flex-direction:column;justify-content:center;padding:40px;font-family:var(--font-mono);color:var(--green);overflow:hidden;}
+#boot-screen.hidden{display:none;}
+#boot-lines{white-space:pre-wrap;font-size:13px;}
+#boot-skip{position:fixed;bottom:30px;right:30px;background:transparent;border:1px solid var(--amber);color:var(--amber);font-family:var(--font-mono);padding:8px 18px;cursor:pointer;z-index:10001;font-size:12px;}
+#boot-skip:hover{background:var(--amber);color:#000;}
+.boot-ok{color:var(--emerald);}
+.boot-warn{color:var(--amber);}
+.boot-err{color:var(--red);}
+
+/* Matrix canvas */
+#matrix-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;opacity:.12;}
+
+/* Main */
+#main-app{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:20px 16px 80px;}
+#main-app.hidden{display:none;}
+
+/* Glitch heading */
+.glitch{font-family:var(--font-pixel);font-size:20px;color:var(--green);text-align:center;margin:30px 0 10px;animation:glitch 3s infinite;position:relative;}
+@keyframes glitch{0%,100%{text-shadow:2px 0 var(--red),-2px 0 cyan;}25%{text-shadow:-2px -1px var(--red),2px 1px cyan;}50%{text-shadow:1px 2px var(--red),-1px -2px cyan;}75%{text-shadow:-1px 0 var(--red),1px 0 cyan;}}
+
+.subtitle{text-align:center;color:var(--gray2);font-size:12px;margin-bottom:30px;font-family:var(--font-pixel);}
+
+/* Nav */
+.quest-nav{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0 30px;position:sticky;top:0;z-index:100;background:rgba(0,0,0,.92);padding:12px 0;border-bottom:1px solid rgba(0,255,65,.15);}
+.quest-nav button{background:transparent;border:1px solid var(--green2);color:var(--green2);font-family:var(--font-mono);padding:6px 14px;cursor:pointer;font-size:11px;transition:all .2s;}
+.quest-nav button:hover,.quest-nav button.active{background:var(--green);color:#000;box-shadow:0 0 12px var(--green);}
+
+/* Sections */
+.quest-section{display:none;animation:fadeIn .5s;}
+.quest-section.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+
+/* Terminal window */
+.terminal{background:var(--code-bg);border:1px solid rgba(0,255,65,.3);border-radius:8px;margin:16px 0;overflow:hidden;}
+.terminal-header{display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(0,255,65,.05);border-bottom:1px solid rgba(0,255,65,.15);font-size:12px;color:var(--gray2);}
+.terminal-dot{width:10px;height:10px;border-radius:50%;}
+.terminal-dot.r{background:#ff5f56;}.terminal-dot.y{background:#ffbd2e;}.terminal-dot.g{background:#27c93f;}
+.terminal-title{margin-left:8px;font-family:var(--font-mono);}
+.terminal-actions{margin-left:auto;display:flex;gap:6px;}
+.terminal-actions button{background:transparent;border:1px solid var(--gray);color:var(--gray2);font-family:var(--font-mono);font-size:10px;padding:3px 10px;cursor:pointer;transition:all .2s;border-radius:3px;}
+.terminal-actions button:hover{border-color:var(--green);color:var(--green);}
+.terminal-actions button.active-explain{border-color:var(--amber);color:var(--amber);box-shadow:0 0 6px var(--amber);}
+.terminal-body{padding:14px;overflow-x:auto;position:relative;}
+.terminal-body pre{margin:0;font-family:var(--font-mono);font-size:13px;line-height:1.7;}
+
+/* Code lines for explain mode */
+.code-line{display:block;padding:1px 4px;border-radius:2px;transition:background .15s;position:relative;}
+.explain-mode .code-line:hover{background:rgba(255,184,0,.1);cursor:help;}
+
+/* Syntax highlighting */
+.kw{color:#ff7b72;} /* keywords */
+.fn{color:#d2a8ff;} /* functions */
+.str{color:#a5d6ff;} /* strings */
+.num{color:#79c0ff;} /* numbers */
+.cmt{color:#8b949e;font-style:italic;} /* comments */
+.typ{color:#ff7b72;} /* types */
+.pp{color:#f97583;} /* preprocessor */
+.op{color:#c9d1d9;} /* operators */
+
+/* Duck */
+.duck-container{position:fixed;bottom:20px;right:20px;z-index:1000;display:flex;align-items:flex-end;gap:10px;pointer-events:none;}
+.duck-bubble{background:rgba(0,0,0,.92);border:1px solid var(--amber);border-radius:10px 10px 0 10px;padding:10px 14px;max-width:320px;font-size:11px;color:var(--amber);font-family:var(--font-mono);line-height:1.5;pointer-events:auto;opacity:0;transform:translateY(10px);transition:all .3s;}
+.duck-bubble.visible{opacity:1;transform:translateY(0);}
+.duck-svg{width:64px;height:64px;animation:duckFloat 3s ease-in-out infinite;pointer-events:auto;cursor:pointer;filter:drop-shadow(0 0 8px rgba(255,184,0,.4));}
+@keyframes duckFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+
+/* Info blocks */
+.info-box{background:rgba(0,255,65,.04);border-left:3px solid var(--green);padding:12px 16px;margin:12px 0;font-size:12px;color:var(--green2);}
+.info-box.amber{border-left-color:var(--amber);background:rgba(255,184,0,.04);color:var(--amber);}
+.info-box.red{border-left-color:var(--red);background:rgba(255,0,64,.04);color:var(--red);}
+.info-box code{background:rgba(0,255,65,.1);padding:1px 5px;border-radius:3px;font-size:12px;}
+
+/* Cmd blocks */
+.cmd-block{background:rgba(255,184,0,.05);border:1px solid rgba(255,184,0,.2);border-radius:6px;padding:10px 14px;margin:10px 0;font-size:12px;color:var(--amber);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.cmd-block .cmd-label{color:var(--gray2);font-size:10px;font-family:var(--font-pixel);}
+.cmd-block code{background:rgba(255,184,0,.1);padding:2px 8px;border-radius:3px;cursor:pointer;transition:all .15s;}
+.cmd-block code:hover{background:var(--amber);color:#000;}
+
+/* IO examples */
+.io-example{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0;}
+.io-box{background:rgba(0,255,65,.03);border:1px solid rgba(0,255,65,.12);border-radius:6px;padding:10px;font-size:12px;}
+.io-box .io-label{font-size:10px;color:var(--gray);font-family:var(--font-pixel);margin-bottom:6px;}
+.io-box pre{color:var(--green);margin:0;}
+
+/* Section title */
+.q-title{font-family:var(--font-pixel);font-size:14px;color:var(--amber);margin:24px 0 8px;text-shadow:0 0 10px rgba(255,184,0,.3);}
+.q-desc{color:var(--gray2);font-size:13px;margin-bottom:14px;}
+
+/* Story blocks */
+.story{color:var(--gray2);font-size:12px;margin:10px 0;padding:10px;border:1px dashed rgba(0,255,65,.1);border-radius:4px;font-style:italic;}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:var(--bg2);}
+::-webkit-scrollbar-thumb{background:var(--green2);border-radius:3px;}
+
+/* Responsive */
+@media(max-width:600px){
+.io-example{grid-template-columns:1fr;}
+.glitch{font-size:14px;}
+.quest-nav button{font-size:9px;padding:5px 8px;}
+.duck-bubble{max-width:220px;font-size:10px;}
+}
+
+/* Toast */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--emerald);color:#000;padding:8px 20px;border-radius:6px;font-family:var(--font-mono);font-size:12px;z-index:10000;opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<!-- Boot Screen -->
+<div id="boot-screen">
+<div id="boot-lines"></div>
+<button id="boot-skip">[ESC] Пропустить</button>
+</div>
+
+<!-- Matrix Rain -->
+<canvas id="matrix-canvas"></canvas>
+
+<!-- Toast -->
+<div class="toast" id="toast">Скопировано!</div>
+
+<!-- Duck -->
+<div class="duck-container" id="duck-container">
+<div class="duck-bubble" id="duck-bubble"></div>
+<svg class="duck-svg" id="duck-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+<!-- Pixel duck -->
+<rect x="20" y="4" width="24" height="4" fill="#ffb800"/>
+<rect x="16" y="8" width="4" height="4" fill="#ffb800"/>
+<rect x="20" y="8" width="24" height="4" fill="#FFD700"/>
+<rect x="44" y="8" width="4" height="4" fill="#ffb800"/>
+<rect x="16" y="12" width="4" height="4" fill="#ffb800"/>
+<rect x="20" y="12" width="8" height="4" fill="#FFD700"/>
+<rect x="28" y="12" width="4" height="4" fill="#111"/>
+<rect x="32" y="12" width="12" height="4" fill="#FFD700"/>
+<rect x="44" y="12" width="4" height="4" fill="#ffb800"/>
+<rect x="16" y="16" width="4" height="4" fill="#ffb800"/>
+<rect x="20" y="16" width="24" height="4" fill="#FFD700"/>
+<rect x="44" y="16" width="4" height="4" fill="#ffb800"/>
+<rect x="12" y="20" width="4" height="4" fill="#ffb800"/>
+<rect x="16" y="20" width="32" height="4" fill="#FFD700"/>
+<rect x="48" y="20" width="4" height="4" fill="#ff6600"/>
+<rect x="52" y="20" width="4" height="4" fill="#ff6600"/>
+<rect x="8" y="24" width="4" height="4" fill="#ffb800"/>
+<rect x="12" y="24" width="36" height="4" fill="#FFD700"/>
+<rect x="48" y="24" width="8" height="4" fill="#ff6600"/>
+<rect x="56" y="24" width="4" height="4" fill="#ff6600"/>
+<rect x="8" y="28" width="4" height="4" fill="#ffb800"/>
+<rect x="12" y="28" width="36" height="4" fill="#FFD700"/>
+<rect x="48" y="28" width="4" height="4" fill="#ff6600"/>
+<rect x="52" y="28" width="4" height="4" fill="#ff6600"/>
+<rect x="12" y="32" width="4" height="4" fill="#ffb800"/>
+<rect x="16" y="32" width="28" height="4" fill="#FFD700"/>
+<rect x="44" y="32" width="4" height="4" fill="#ffb800"/>
+<rect x="16" y="36" width="4" height="4" fill="#ffb800"/>
+<rect x="20" y="36" width="20" height="4" fill="#FFD700"/>
+<rect x="40" y="36" width="4" height="4" fill="#ffb800"/>
+<rect x="12" y="40" width="8" height="4" fill="#ff6600"/>
+<rect x="20" y="40" width="20" height="4" fill="#ffb800"/>
+<rect x="40" y="40" width="8" height="4" fill="#ff6600"/>
+<rect x="8" y="44" width="8" height="4" fill="#ff6600"/>
+<rect x="44" y="44" width="8" height="4" fill="#ff6600"/>
+</svg>
+</div>
+
+<!-- Main App -->
+<div id="main-app" class="hidden">
+<h1 class="glitch">SCHOOL 21 — LEVEL 2</h1>
+<p class="subtitle">POINTER QUEST SOLVER</p>
+
+<div class="quest-nav" id="quest-nav"></div>
+
+<!-- Quests will be injected here -->
+<div id="quests-container"></div>
+</div>
+
+<script>
+// ==================== BOOT SEQUENCE ====================
+(function(){
+const bootLines = [
+{text:'BIOS v3.14 — POST check...', delay:100},
+{text:'[  OK  ] Memory check: 640K', cls:'boot-ok', delay:150},
+{text:'[  OK  ] Loading kernel modules...', cls:'boot-ok', delay:200},
+{text:'[  OK  ] Initializing file system...', cls:'boot-ok', delay:180},
+{text:'[WARN ] Corrupted sectors detected in /dev/labyrinth', cls:'boot-warn', delay:300},
+{text:'', delay:100},
+{text:'  ██████╗ ██████╗██╗  ██╗ ██████╗  ██████╗ ██╗     ██████╗  ██╗', delay:30},
+{text:'  ██╔═══╝██╔════╝██║  ██║██╔═══██╗██╔═══██╗██║     ╚════██╗███║', delay:30},
+{text:'  ██████╗██║     ███████║██║   ██║██║   ██║██║      █████╔╝╚██║', delay:30},
+{text:'  ╚═══██║██║     ██╔══██║██║   ██║██║   ██║██║     ██╔═══╝  ██║', delay:30},
+{text:'  ██████║╚██████╗██║  ██║╚██████╔╝╚██████╔╝███████╗███████╗ ██║', delay:30},
+{text:'  ╚═════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚══════╝╚══════╝ ╚═╝', delay:30},
+{text:'', delay:100},
+{text:'[  OK  ] Loading AI Data Analyzer v0.01...', cls:'boot-ok', delay:250},
+{text:'[  OK  ] Loading pointer modules...', cls:'boot-ok', delay:200},
+{text:'[  OK  ] Loading quest database...', cls:'boot-ok', delay:200},
+{text:'[  OK  ] Initializing duck assistant...', cls:'boot-ok', delay:300},
+{text:'[ ERR  ] Segmentation fault in room_1.module', cls:'boot-err', delay:400},
+{text:'[WARN ] Repair required. Launching interactive solver...', cls:'boot-warn', delay:500},
+{text:'', delay:200},
+{text:'> READY. Press any key or wait...', delay:0},
+];
+const container = document.getElementById('boot-lines');
+const screen = document.getElementById('boot-screen');
+const skipBtn = document.getElementById('boot-skip');
+let idx = 0;
+let done = false;
+function finishBoot(){
+if(done) return;
+done = true;
+screen.classList.add('hidden');
+document.getElementById('main-app').classList.remove('hidden');
+}
+function nextLine(){
+if(done) return;
+if(idx >= bootLines.length){setTimeout(finishBoot, 1200); return;}
+const l = bootLines[idx++];
+const span = document.createElement('div');
+span.textContent = l.text;
+if(l.cls) span.className = l.cls;
+container.appendChild(span);
+container.scrollTop = container.scrollHeight;
+setTimeout(nextLine, l.delay + 60);
+}
+nextLine();
+skipBtn.addEventListener('click', finishBoot);
+document.addEventListener('keydown', function handler(e){
+if(e.key === 'Escape' || !done){
+finishBoot();
+document.removeEventListener('keydown', handler);
+}
+});
+setTimeout(finishBoot, 15000);
+})();
+
+// ==================== MATRIX RAIN ====================
+(function(){
+const canvas = document.getElementById('matrix-canvas');
+const ctx = canvas.getContext('2d');
+function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+resize(); window.addEventListener('resize', resize);
+const chars = 'アカサタナハマヤラワABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789*+=-<>{}[]';
+const fontSize = 14;
+let columns = Math.floor(canvas.width / fontSize);
+let drops = new Array(columns).fill(1);
+function draw(){
+ctx.fillStyle = 'rgba(0,0,0,0.05)';
+ctx.fillRect(0,0,canvas.width,canvas.height);
+ctx.fillStyle = '#00ff41';
+ctx.font = fontSize + 'px monospace';
+for(let i=0;i<drops.length;i++){
+const text = chars[Math.floor(Math.random()*chars.length)];
+ctx.fillText(text, i*fontSize, drops[i]*fontSize);
+if(drops[i]*fontSize > canvas.height && Math.random() > 0.975) drops[i]=0;
+drops[i]++;
+}
+}
+setInterval(draw, 50);
+window.addEventListener('resize',()=>{columns=Math.floor(canvas.width/fontSize);drops=new Array(columns).fill(1);});
+})();
+
+// ==================== DUCK HELPER ====================
+const duckBubble = document.getElementById('duck-bubble');
+const duckSvg = document.getElementById('duck-svg');
+let duckTimeout = null;
+const duckIdlePhrases = [
+'Кря! Нажми "Объяснить код" и наведи на строку — я помогу!',
+'Не забудь: никаких глобальных переменных и goto!',
+'Кря-кря! Указатели — это просто адреса в памяти!',
+'Помни: один выход из функции!',
+'stdlib.h запрещён в квестах 5-8!',
+'Массив — это указатель! Всё указатель! Кря!',
+'Максимум 42 строки на функцию. Декомпозируй!',
+];
+function duckSay(text, duration){
+clearTimeout(duckTimeout);
+duckBubble.textContent = text;
+duckBubble.classList.add('visible');
+if(duration){
+duckTimeout = setTimeout(()=>{duckBubble.classList.remove('visible');}, duration);
+}
+}
+function duckHide(){
+duckBubble.classList.remove('visible');
+}
+duckSvg.addEventListener('click', ()=>{
+duckSay(duckIdlePhrases[Math.floor(Math.random()*duckIdlePhrases.length)], 5000);
+});
+
+// ==================== TOAST ====================
+function showToast(msg){
+const t = document.getElementById('toast');
+t.textContent = msg || 'Скопировано!';
+t.classList.add('show');
+setTimeout(()=>t.classList.remove('show'), 1500);
+}
+
+// ==================== COPY ====================
+function copyCode(id){
+const el = document.getElementById(id);
+if(!el) return;
+const text = el.textContent;
+navigator.clipboard.writeText(text).then(()=>showToast()).catch(()=>{
+const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast();
+});
+}
+
+// ==================== EXPLAIN MODE ====================
+function toggleExplain(btnId, bodyId){
+const btn = document.getElementById(btnId);
+const body = document.getElementById(bodyId);
+if(!btn || !body) return;
+const isActive = btn.classList.toggle('active-explain');
+if(isActive){
+body.classList.add('explain-mode');
+duckSay('Режим объяснения включён! Наведи мышь на строку кода.', 4000);
+} else {
+body.classList.remove('explain-mode');
+duckHide();
+}
+}
+
+// Line hover handler for explain mode
+document.addEventListener('mouseover', function(e){
+const line = e.target.closest('.code-line');
+if(!line) return;
+const body = line.closest('.terminal-body');
+if(!body || !body.classList.contains('explain-mode')) return;
+const explanation = line.getAttribute('data-explain');
+if(explanation){
+duckSay(explanation);
+}
+});
+document.addEventListener('mouseout', function(e){
+const line = e.target.closest('.code-line');
+if(!line) return;
+const body = line.closest('.terminal-body');
+if(body && body.classList.contains('explain-mode')){
+// keep visible briefly
+}
+});
+
+// ==================== HIGHLIGHT HELPER ====================
+function hl(code){
+// Simple syntax highlighter
+return code
+.replace(/\/\/(.*)/g, '<span class="cmt">//$1</span>')
+.replace(/\/\*([\s\S]*?)\*\//g, '<span class="cmt">/*$1*/</span>')
+.replace(/"([^"]*)"/g, '<span class="str">"$1"</span>')
+.replace(/\b(int|void|char|float|double|long|short|unsigned|signed|const|static|return|if|else|for|while|do|break|switch|case|default|sizeof|typedef|struct|enum|union)\b/g, '<span class="kw">$1</span>')
+.replace(/\b(scanf|printf|main)\b/g, '<span class="fn">$1</span>')
+.replace(/#(include|define|ifndef|endif|ifdef)\b/g, '<span class="pp">#$1</span>')
+.replace(/\b(\d+\.?\d*)\b/g, '<span class="num">$1</span>');
+}
+
+function makeCodeLines(code, explanations){
+const lines = code.split('\n');
+let html = '';
+for(let i = 0; i < lines.length; i++){
+const exp = (explanations && explanations[i]) ? ' data-explain="' + explanations[i].replace(/"/g,'&quot;') + '"' : '';
+html += '<span class="code-line"' + exp + '>' + hl(escHtml(lines[i])) + '</span>\n';
+}
+return html;
+}
+
+function escHtml(s){
+return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ==================== QUESTS DATA ====================
+const quests = [
+// ============ QUEST 1 ============
+{
+id: 'q1',
+title: 'Quest 1. Arguments and pointers — maxmin.c',
+story: 'Модуль maxmin вызывает Segmentation fault. Необходимо починить его так, чтобы он находил max и min из 3 целых чисел.',
+code: `#include <stdio.h>
+
+void max_min(int a, int b, int c, int *max, int *min) {
+  *max = a;
+  *min = a;
+  if (b > *max) *max = b;
+  if (c > *max) *max = c;
+  if (b < *min) *min = b;
+  if (c < *min) *min = c;
+}
+
+int main(void) {
+  int a, b, c;
+  int max, min;
+  if (scanf("%d %d %d", &a, &b, &c) != 3) {
+    printf("n/a");
+  } else {
+    max_min(a, b, c, &max, &min);
+    printf("%d %d", max, min);
+  }
+  return 0;
+}`,
+explanations: {
+0: '#include <stdio.h> — подключаем стандартную библиотеку ввода/вывода (printf, scanf)',
+2: 'Функция max_min принимает 3 числа и 2 указателя для записи результата (max и min)',
+3: '*max = a — записываем по адресу max начальное значение a',
+4: '*min = a — аналогично для минимума',
+5: 'Если b больше текущего max, обновляем max',
+6: 'Если c больше текущего max, обновляем max',
+7: 'Если b меньше текущего min, обновляем min',
+8: 'Если c меньше текущего min, обновляем min',
+11: 'Точка входа. Никаких глобальных переменных!',
+12: 'Объявляем локальные переменные для входных данных',
+13: 'Объявляем переменные для результата — max и min',
+14: 'scanf возвращает количество успешно считанных значений; ожидаем 3',
+15: 'При некорректном вводе выводим "n/a"',
+17: 'Передаём адреса max и min — функция запишет результат по указателям',
+18: 'Выводим max и min через пробел',
+20: 'return 0 — единственный выход из main (успешное завершение)',
+},
+filename: 'maxmin.c',
+inputs: ['1 2 3'],
+outputs: ['3 1'],
+commands: [
+'gcc -Wall -Werror -Wextra src/maxmin.c -o maxmin',
+'echo "1 2 3" | ./maxmin',
+'clang-format -n src/maxmin.c',
+'cppcheck --enable=all --suppress=missingIncludeSystem src/maxmin.c',
+],
+},
+// ============ QUEST 2 ============
+{
+id: 'q2',
+title: 'Quest 2. Data I/O — squaring.c',
+story: 'Модуль squaring принимает массив целых чисел, возводит в квадрат и выводит. Декомпозиция обязательна.',
+code: `#include <stdio.h>
+
+#define MAX_SIZE 100
+
+int input_array(int *arr, int *n) {
+  int result = 0;
+  if (scanf("%d", n) == 1 && *n > 0 && *n <= MAX_SIZE) {
+    for (int i = 0; i < *n && result == 0; i++) {
+      if (scanf("%d", &arr[i]) != 1) {
+        result = 1;
+      }
+    }
+  } else {
+    result = 1;
+  }
+  return result;
+}
+
+void square_array(int *arr, int n) {
+  for (int i = 0; i < n; i++) {
+    arr[i] = arr[i] * arr[i];
+  }
+}
+
+void output_array(const int *arr, int n) {
+  for (int i = 0; i < n; i++) {
+    if (i > 0) printf(" ");
+    printf("%d", arr[i]);
+  }
+}
+
+int main(void) {
+  int arr[MAX_SIZE];
+  int n;
+  if (input_array(arr, &n) != 0) {
+    printf("n/a");
+  } else {
+    square_array(arr, n);
+    output_array(arr, n);
+  }
+  return 0;
+}`,
+explanations: {
+0: '#include <stdio.h> — библиотека ввода-вывода',
+2: '#define MAX_SIZE 100 — макрос для максимального размера массива',
+4: 'Функция ввода массива. Принимает указатель на массив и указатель на размер',
+5: 'result = 0 означает "нет ошибки"',
+6: 'Считываем размер n. Проверяем что scanf вернул 1 и n в допустимых пределах',
+7: 'Цикл с единственной точкой выхода — условие цикла проверяет и i < n, и отсутствие ошибок',
+8: 'Читаем каждый элемент. Если scanf не считал — ошибка',
+9: 'result = 1 — сигнал об ошибке',
+18: 'Функция возведения в квадрат. Массив передаётся по указателю',
+19: 'Простой цикл по всем элементам',
+20: 'arr[i] = arr[i] * arr[i] — возводим в квадрат на месте',
+23: 'Функция вывода. const — обещаем не менять данные',
+24: 'Цикл вывода',
+25: 'Печатаем пробел-разделитель перед всеми элементами кроме первого',
+26: 'Выводим элемент',
+30: 'main — точка входа',
+31: 'Массив на стеке. Динамическая память запрещена!',
+33: 'Проверяем ввод. При ошибке — "n/a"',
+36: 'Сначала возводим в квадрат, потом выводим',
+39: 'Единственный return из main',
+},
+filename: 'squaring.c',
+inputs: ['3', '1 2 3'],
+outputs: ['1 4 9'],
+commands: [
+'gcc -Wall -Werror -Wextra src/squaring.c -o squaring',
+'echo "3\\n1 2 3" | ./squaring',
+],
+},
+// ============ QUEST 3 ============
+{
+id: 'q3',
+title: 'Quest 3. Data metrics — stat.c',
+story: 'Модуль stat вычисляет статистические метрики: max, min, среднее (мат. ожидание) и дисперсию для дискретного равномерного распределения.',
+code: `#include <stdio.h>
+
+#define MAX_SIZE 100
+
+int input_array(int *arr, int *n) {
+  int result = 0;
+  if (scanf("%d", n) == 1 && *n > 0 && *n <= MAX_SIZE) {
+    for (int i = 0; i < *n && result == 0; i++) {
+      if (scanf("%d", &arr[i]) != 1) {
+        result = 1;
+      }
+    }
+  } else {
+    result = 1;
+  }
+  return result;
+}
+
+void output_array(const int *arr, int n) {
+  for (int i = 0; i < n; i++) {
+    if (i > 0) printf(" ");
+    printf("%d", arr[i]);
+  }
+}
+
+int find_max(const int *arr, int n) {
+  int max_val = arr[0];
+  for (int i = 1; i < n; i++) {
+    if (arr[i] > max_val) max_val = arr[i];
+  }
+  return max_val;
+}
+
+int find_min(const int *arr, int n) {
+  int min_val = arr[0];
+  for (int i = 1; i < n; i++) {
+    if (arr[i] < min_val) min_val = arr[i];
+  }
+  return min_val;
+}
+
+double calc_mean(const int *arr, int n) {
+  double sum = 0.0;
+  for (int i = 0; i < n; i++) {
+    sum += arr[i];
+  }
+  return sum / n;
+}
+
+double calc_variance(const int *arr, int n, double mean) {
+  double sum = 0.0;
+  for (int i = 0; i < n; i++) {
+    double diff = arr[i] - mean;
+    sum += diff * diff;
+  }
+  return sum / n;
+}
+
+int main(void) {
+  int arr[MAX_SIZE];
+  int n;
+  if (input_array(arr, &n) != 0) {
+    printf("n/a");
+  } else {
+    output_array(arr, n);
+    printf("\\n");
+    int max_val = find_max(arr, n);
+    int min_val = find_min(arr, n);
+    double mean = calc_mean(arr, n);
+    double variance = calc_variance(arr, n, mean);
+    printf("%d %d %lf %lf", max_val, min_val, mean, variance);
+  }
+  return 0;
+}`,
+explanations: {
+0: 'Подключаем stdio.h для ввода/вывода',
+2: 'Максимальный размер массива — 100',
+4: 'Функция ввода: считывает размер и элементы. Возвращает 0 при успехе',
+18: 'Функция вывода массива через пробелы',
+25: 'find_max — находит максимум, начиная с arr[0]',
+26: 'Инициализируем max первым элементом',
+27: 'Проходим с 1-го элемента — 0-й уже учтён',
+28: 'Если текущий больше max — обновляем',
+33: 'find_min — аналогично для минимума',
+40: 'calc_mean — математическое ожидание = сумма/n для равномерного распределения',
+41: 'sum типа double для точности',
+47: 'calc_variance — дисперсия = Σ(xi - mean)² / n для равномерного распределения',
+49: 'diff = отклонение элемента от среднего',
+50: 'Суммируем квадраты отклонений',
+52: 'Делим на n (не n-1, т.к. по условию — дискретное равномерное)',
+55: 'main — собираем всё вместе',
+61: 'Выводим массив, затем метрики на новой строке',
+65: 'printf с %lf и точностью 6 знаков (по умолчанию)',
+},
+filename: 'stat.c',
+inputs: ['4', '1 2 3 4'],
+outputs: ['1 2 3 4\n4 1 2.500000 1.250000'],
+commands: [
+'gcc -Wall -Werror -Wextra src/stat.c -o stat -lm',
+'echo "4\\n1 2 3 4" | ./stat',
+],
+},
+// ============ QUEST 4 ============
+{
+id: 'q4',
+title: 'Quest 4. Search — search.c',
+story: 'Найти первое число: чётное, >= среднего, в пределах 3 сигм, не равное 0. Если нет — вывести 0. Максимум 30 элементов.',
+code: `#include <stdio.h>
+#include <math.h>
+
+#define MAX_SIZE 30
+
+int input_array(int *arr, int *n) {
+  int result = 0;
+  if (scanf("%d", n) == 1 && *n > 0 && *n <= MAX_SIZE) {
+    for (int i = 0; i < *n && result == 0; i++) {
+      if (scanf("%d", &arr[i]) != 1) {
+        result = 1;
+      }
+    }
+  } else {
+    result = 1;
+  }
+  return result;
+}
+
+double calc_mean(const int *arr, int n) {
+  double sum = 0.0;
+  for (int i = 0; i < n; i++) {
+    sum += arr[i];
+  }
+  return sum / n;
+}
+
+double calc_variance(const int *arr, int n, double mean) {
+  double sum = 0.0;
+  for (int i = 0; i < n; i++) {
+    double diff = arr[i] - mean;
+    sum += diff * diff;
+  }
+  return sum / n;
+}
+
+int is_even(int x) {
+  return x % 2 == 0;
+}
+
+int check_three_sigma(int x, double mean, double sigma) {
+  return fabs(x - mean) <= 3.0 * sigma;
+}
+
+int search(const int *arr, int n) {
+  double mean = calc_mean(arr, n);
+  double variance = calc_variance(arr, n, mean);
+  double sigma = sqrt(variance);
+  int found = 0;
+  int result = 0;
+  for (int i = 0; i < n && found == 0; i++) {
+    if (arr[i] != 0 && is_even(arr[i]) &&
+        (double)arr[i] >= mean &&
+        check_three_sigma(arr[i], mean, sigma)) {
+      result = arr[i];
+      found = 1;
+    }
+  }
+  return result;
+}
+
+int main(void) {
+  int arr[MAX_SIZE];
+  int n;
+  if (input_array(arr, &n) != 0) {
+    printf("n/a");
+  } else {
+    int result = search(arr, n);
+    printf("%d", result);
+  }
+  return 0;
+}`,
+explanations: {
+0: 'stdio.h для ввода-вывода',
+1: 'math.h для sqrt и fabs',
+3: 'Максимум 30 элементов по условию',
+5: 'Переиспользуем функцию ввода из предыдущих квестов',
+19: 'calc_mean — мат. ожидание, переиспользуем',
+27: 'calc_variance — дисперсия, переиспользуем',
+35: 'Вспомогательная функция: проверка на чётность',
+38: 'Проверка правила 3 сигм: |x - mean| <= 3σ',
+42: 'Главная функция поиска — декомпозиция!',
+43: 'Считаем mean',
+44: 'Считаем дисперсию',
+45: 'sigma = √(variance) — стандартное отклонение',
+46: 'Флаг found — для единственного выхода из цикла',
+47: 'result = 0 — значение по умолчанию (не найдено)',
+48: 'Единственная точка выхода из цикла: i < n && found == 0',
+49: 'Проверяем все условия: не 0, чётное, >= mean, правило 3σ',
+},
+filename: 'search.c',
+inputs: ['4', '1 2 3 4'],
+outputs: ['4'],
+commands: [
+'gcc -Wall -Werror -Wextra src/search.c -o search -lm',
+'echo "4\\n1 2 3 4" | ./search',
+],
+},
+// ============ QUEST 5 ============
+{
+id: 'q5',
+title: 'Quest 5. Sort & memory — sort.c',
+story: 'Отсортировать массив из 10 чисел по возрастанию. stdlib.h запрещён! Декомпозиция: чтение, сортировка, вывод.',
+code: `#include <stdio.h>
+
+#define SIZE 10
+
+int input_array(int *arr, int n) {
+  int result = 0;
+  for (int i = 0; i < n && result == 0; i++) {
+    if (scanf("%d", &arr[i]) != 1) {
+      result = 1;
+    }
+  }
+  return result;
+}
+
+void swap(int *a, int *b) {
+  int temp = *a;
+  *a = *b;
+  *b = temp;
+}
+
+void sort_array(int *arr, int n) {
+  for (int i = 0; i < n - 1; i++) {
+    for (int j = 0; j < n - 1 - i; j++) {
+      if (arr[j] > arr[j + 1]) {
+        swap(&arr[j], &arr[j + 1]);
+      }
+    }
+  }
+}
+
+void output_array(const int *arr, int n) {
+  for (int i = 0; i < n; i++) {
+    if (i > 0) printf(" ");
+    printf("%d", arr[i]);
+  }
+}
+
+int main(void) {
+  int arr[SIZE];
+  if (input_array(arr, SIZE) != 0) {
+    printf("n/a");
+  } else {
+    sort_array(arr, SIZE);
+    output_array(arr, SIZE);
+  }
+  return 0;
+}`,
+explanations: {
+0: 'Только stdio.h! stdlib.h запрещён по условию',
+2: '#define SIZE 10 — фиксированный размер массива',
+4: 'Функция ввода. Ровно 10 чисел. Массив по указателю',
+6: 'Единственная точка выхода из цикла',
+7: 'Если scanf не считал число — ошибка',
+14: 'swap — обмен двух значений через указатели. Классика!',
+15: 'temp сохраняет *a',
+16: '*a = *b — записываем b по адресу a',
+17: '*b = temp — записываем сохранённое значение по адресу b',
+20: 'Сортировка пузырьком (Bubble Sort). Можно любой алгоритм',
+21: 'Внешний цикл — проходы',
+22: 'Внутренний цикл — сравнения и обмены',
+23: 'Если текущий > следующего — меняем местами',
+24: 'swap через указатели — передаём адреса',
+29: 'Функция вывода — через пробелы',
+35: 'main: ввод → сортировка → вывод',
+36: 'Массив на стеке, без malloc!',
+37: 'Проверка ввода',
+40: 'Сортируем и выводим',
+},
+filename: 'sort.c',
+inputs: ['4 3 9 0 1 2 100 2 7 -1'],
+outputs: ['-1 0 1 2 2 3 4 7 9 100'],
+commands: [
+'gcc -Wall -Werror -Wextra src/sort.c -o sort',
+'echo "4 3 9 0 1 2 100 2 7 -1" | ./sort',
+],
+},
+// ============ QUEST 6 ============
+{
+id: 'q6',
+title: 'Quest 6. Several arrays — key9part1.c',
+story: 'Принять размер и массив. Вывести сумму чётных (0 — нечётное). Вывести элементы, на которые сумма делится нацело. Макс. размер 10.',
+code: `#include <stdio.h>
+
+#define MAX_SIZE 10
+
+int input_array(int *arr, int *n) {
+  int result = 0;
+  if (scanf("%d", n) == 1 && *n > 0 && *n <= MAX_SIZE) {
+    for (int i = 0; i < *n && result == 0; i++) {
+      if (scanf("%d", &arr[i]) != 1) {
+        result = 1;
+      }
+    }
+  } else {
+    result = 1;
+  }
+  return result;
+}
+
+int calc_even_sum(const int *arr, int n) {
+  int sum = 0;
+  for (int i = 0; i < n; i++) {
+    if (arr[i] != 0 && arr[i] % 2 == 0) {
+      sum += arr[i];
+    }
+  }
+  return sum;
+}
+
+int build_divisible(const int *src, int n, int *dst, int sum) {
+  int count = 0;
+  for (int i = 0; i < n; i++) {
+    if (src[i] != 0 && sum % src[i] == 0) {
+      dst[count] = src[i];
+      count++;
+    }
+  }
+  return count;
+}
+
+void output_array(const int *arr, int n) {
+  for (int i = 0; i < n; i++) {
+    if (i > 0) printf(" ");
+    printf("%d", arr[i]);
+  }
+}
+
+int main(void) {
+  int arr[MAX_SIZE];
+  int result[MAX_SIZE];
+  int n;
+  if (input_array(arr, &n) != 0) {
+    printf("n/a");
+  } else {
+    int sum = calc_even_sum(arr, n);
+    if (sum == 0) {
+      printf("n/a");
+    } else {
+      int count = build_divisible(arr, n, result, sum);
+      if (count == 0) {
+        printf("n/a");
+      } else {
+        printf("%d\\n", sum);
+        output_array(result, count);
+      }
+    }
+  }
+  return 0;
+}`,
+explanations: {
+0: 'Только stdio.h!',
+2: 'Максимум 10 элементов',
+4: 'Стандартная функция ввода с проверками',
+18: 'Сумма чётных элементов. ВАЖНО: 0 считается нечётным по условию!',
+20: 'Проходим по массиву',
+21: 'arr[i] != 0 — ноль нечётный по условию; arr[i] % 2 == 0 — проверка чётности',
+28: 'Строим новый массив из элементов, на которые sum делится нацело',
+30: 'Проходим исходный массив',
+31: 'src[i] != 0 — делить на 0 нельзя; sum % src[i] == 0 — делится нацело',
+32: 'Добавляем в результирующий массив',
+39: 'Вывод массива — переиспользуем',
+45: 'main: входной и результирующий массивы на стеке',
+50: 'Считаем сумму чётных',
+51: 'Если нет чётных (sum == 0) — "n/a"',
+53: 'Строим массив делителей',
+54: 'Если таких нет — "n/a"',
+56: 'Выводим сумму и новый массив',
+},
+filename: 'key9part1.c',
+inputs: ['10', '4 3 9 0 1 2 0 2 7 -1'],
+outputs: ['8\n4 1 2 2 -1'],
+commands: [
+'gcc -Wall -Werror -Wextra src/key9part1.c -o key9part1',
+'echo "10\\n4 3 9 0 1 2 0 2 7 -1" | ./key9part1',
+],
+},
+// ============ QUEST 7 ============
+{
+id: 'q7',
+title: 'Quest 7. Cyclic shift — cycle_shift.c',
+story: 'Циклический сдвиг массива влево на c позиций. При отрицательном c — вправо. Макс. 10 элементов, stdlib.h запрещён.',
+code: `#include <stdio.h>
+
+#define MAX_SIZE 10
+
+int input_array(int *arr, int *n) {
+  int result = 0;
+  if (scanf("%d", n) == 1 && *n > 0 && *n <= MAX_SIZE) {
+    for (int i = 0; i < *n && result == 0; i++) {
+      if (scanf("%d", &arr[i]) != 1) {
+        result = 1;
+      }
+    }
+  } else {
+    result = 1;
+  }
+  return result;
+}
+
+void reverse(int *arr, int left, int right) {
+  for (int l = left, r = right; l < r; l++, r--) {
+    int temp = arr[l];
+    arr[l] = arr[r];
+    arr[r] = temp;
+  }
+}
+
+void cycle_shift(int *arr, int n, int c) {
+  int shift = c % n;
+  if (shift < 0) {
+    shift += n;
+  }
+  if (shift != 0) {
+    reverse(arr, 0, shift - 1);
+    reverse(arr, shift, n - 1);
+    reverse(arr, 0, n - 1);
+  }
+}
+
+void output_array(const int *arr, int n) {
+  for (int i = 0; i < n; i++) {
+    if (i > 0) printf(" ");
+    printf("%d", arr[i]);
+  }
+}
+
+int main(void) {
+  int arr[MAX_SIZE];
+  int n;
+  int c;
+  if (input_array(arr, &n) != 0) {
+    printf("n/a");
+  } else {
+    if (scanf("%d", &c) != 1) {
+      printf("n/a");
+    } else {
+      cycle_shift(arr, n, c);
+      output_array(arr, n);
+    }
+  }
+  return 0;
+}`,
+explanations: {
+0: 'Только stdio.h — stdlib.h запрещён!',
+2: 'Максимум 10 элементов',
+4: 'Функция ввода с проверкой (переиспользуем)',
+18: 'reverse — разворот подмассива arr[left..right]. Ключ к алгоритму!',
+19: 'Два указателя двигаются навстречу: l от left, r от right',
+20: 'temp для обмена',
+25: 'cycle_shift — основной алгоритм через 3 реверса',
+26: 'shift = c % n — нормализуем сдвиг (убираем полные обороты)',
+27: 'Если shift отрицательный (сдвиг вправо) — приводим к положительному эквиваленту',
+30: 'Алгоритм трёх реверсов: reverse(0..shift-1), reverse(shift..n-1), reverse(0..n-1)',
+31: 'Разворачиваем левую часть [0, shift-1]',
+32: 'Разворачиваем правую часть [shift, n-1]',
+33: 'Разворачиваем весь массив — готово!',
+36: 'Вывод через пробелы',
+42: 'main: вводим массив, затем величину сдвига',
+48: 'Считываем c отдельно после массива',
+},
+filename: 'cycle_shift.c',
+inputs: ['10', '4 3 9 0 1 2 0 2 7 -1', '2'],
+outputs: ['9 0 1 2 0 2 7 -1 4 3'],
+commands: [
+'gcc -Wall -Werror -Wextra src/cycle_shift.c -o cycle_shift',
+'echo "10\\n4 3 9 0 1 2 0 2 7 -1\\n2" | ./cycle_shift',
+],
+},
+// ============ QUEST 8 (BONUS) ============
+{
+id: 'q8',
+title: '★ Quest 8. Arbitrary-precision arithmetic — key9part2.c',
+story: 'Сложение и вычитание очень больших чисел, представленных как массивы цифр. Макс. 100 цифр. stdlib.h запрещён.',
+code: `#include <stdio.h>
+
+#define MAX_LEN 100
+
+int input_number(int *arr, int *len) {
+  int result = 0;
+  int buf[MAX_LEN];
+  int n = 0;
+  int ch;
+  int started = 0;
+  while ((ch = getchar()) != '\\n' && ch != EOF && n < MAX_LEN) {
+    if (ch == ' ') {
+      if (n > 0) started = 1;
+    } else if (ch >= '0' && ch <= '9') {
+      if (started || n > 0 || ch != '0') {
+        buf[n] = ch - '0';
+        n++;
+        started = 1;
+      }
+    } else {
+      result = 1;
+    }
+  }
+  if (n == 0 && result == 0) {
+    buf[0] = 0;
+    n = 1;
+  }
+  *len = n;
+  for (int i = 0; i < n; i++) {
+    arr[i] = buf[i];
+  }
+  return result;
+}
+
+void add_numbers(const int *a, int la, const int *b, int lb,
+                 int *res, int *lr) {
+  int carry = 0;
+  int ia = la - 1;
+  int ib = lb - 1;
+  int ir = MAX_LEN - 1;
+  int tmp[MAX_LEN] = {0};
+  for (; ia >= 0 || ib >= 0 || carry; ir--) {
+    int sum = carry;
+    if (ia >= 0) {
+      sum += a[ia];
+      ia--;
+    }
+    if (ib >= 0) {
+      sum += b[ib];
+      ib--;
+    }
+    tmp[ir + 1] = sum % 10;
+    carry = sum / 10;
+  }
+  int start = ir + 2;
+  int len = MAX_LEN - start;
+  if (len == 0) {
+    res[0] = 0;
+    *lr = 1;
+  } else {
+    for (int i = 0; i < len; i++) {
+      res[i] = tmp[start + i];
+    }
+    *lr = len;
+  }
+}
+
+int compare(const int *a, int la, const int *b, int lb) {
+  int result = 0;
+  if (la != lb) {
+    result = (la > lb) ? 1 : -1;
+  } else {
+    int i = 0;
+    while (i < la && a[i] == b[i]) {
+      i++;
+    }
+    if (i < la) {
+      result = (a[i] > b[i]) ? 1 : -1;
+    }
+  }
+  return result;
+}
+
+int sub_numbers(const int *a, int la, const int *b, int lb,
+                int *res, int *lr) {
+  int err = 0;
+  if (compare(a, la, b, lb) < 0) {
+    err = 1;
+  } else {
+    int borrow = 0;
+    int ia = la - 1;
+    int ib = lb - 1;
+    int tmp[MAX_LEN] = {0};
+    int ir = MAX_LEN - 1;
+    for (; ia >= 0; ia--, ir--) {
+      int digit_a = a[ia];
+      int digit_b = (ib >= 0) ? b[ib] : 0;
+      int diff = digit_a - digit_b - borrow;
+      if (diff < 0) {
+        diff += 10;
+        borrow = 1;
+      } else {
+        borrow = 0;
+      }
+      tmp[ir + 1] = diff;
+      if (ib >= 0) ib--;
+    }
+    int start = 0;
+    for (int i = 0; i < MAX_LEN; i++) {
+      if (tmp[i] != 0) {
+        start = i;
+        break;
+      }
+      start = MAX_LEN - 1;
+    }
+    int len = MAX_LEN - start;
+    for (int i = 0; i < len; i++) {
+      res[i] = tmp[start + i];
+    }
+    *lr = len;
+  }
+  return err;
+}
+
+void output_number(const int *arr, int n) {
+  for (int i = 0; i < n; i++) {
+    if (i > 0) printf(" ");
+    printf("%d", arr[i]);
+  }
+}
+
+int main(void) {
+  int a[MAX_LEN], b[MAX_LEN];
+  int la, lb;
+  int sum_r[MAX_LEN + 1], diff_r[MAX_LEN];
+  int ls, ld;
+  if (input_number(a, &la) != 0 || input_number(b, &lb) != 0) {
+    printf("n/a");
+  } else {
+    add_numbers(a, la, b, lb, sum_r, &ls);
+    output_number(sum_r, ls);
+    printf("\\n");
+    if (sub_numbers(a, la, b, lb, diff_r, &ld) != 0) {
+      printf("n/a");
+    } else {
+      output_number(diff_r, ld);
+    }
+  }
+  return 0;
+}`,
+explanations: {
+0: 'Только stdio.h!',
+2: 'Максимум 100 цифр — длинная арифметика',
+4: 'Ввод числа как массива цифр, разделённых пробелами',
+10: 'Читаем посимвольно до перевода строки',
+14: 'Пропускаем ведущие нули (кроме числа "0")',
+34: 'add_numbers — сложение столбиком, как в школе!',
+35: 'Результат записываем в res, длину — в lr',
+36: 'carry — перенос разряда',
+37: 'Начинаем с младших разрядов (с конца массива)',
+42: 'Складываем поразрядно + перенос',
+51: 'Записываем цифру результата и вычисляем новый перенос',
+62: 'compare — сравнение двух длинных чисел',
+64: 'Сначала по длине — более длинное число больше',
+67: 'При равных длинах — сравниваем поразрядно слева',
+76: 'sub_numbers — вычитание столбиком',
+78: 'Если уменьшаемое меньше вычитаемого — ошибка (по условию)',
+83: 'borrow — заём разряда при вычитании',
+88: 'Вычитаем поразрядно с учётом заёма',
+89: 'Если результат отрицательный — занимаем из старшего разряда',
+101: 'Убираем ведущие нули из результата',
+112: 'Вывод числа как массива цифр через пробелы',
+118: 'main: читаем два числа, выводим сумму и разность',
+},
+filename: 'key9part2.c',
+inputs: ['1 9 4 4 6 7 4 4 0 7 3 7 0 9 5 5 1 6 1', '2 9'],
+outputs: ['1 9 4 4 6 7 4 4 0 7 3 7 0 9 5 5 1 9 0\n1 9 4 4 6 7 4 4 0 7 3 7 0 9 5 5 1 3 2'],
+commands: [
+'gcc -Wall -Werror -Wextra src/key9part2.c -o key9part2',
+'printf "1 9 4 4 6 7 4 4 0 7 3 7 0 9 5 5 1 6 1\\n2 9\\n" | ./key9part2',
+],
+},
+];
+
+// ==================== RENDER ====================
+const navEl = document.getElementById('quest-nav');
+const container = document.getElementById('quests-container');
+
+quests.forEach((q, idx) => {
+// Nav button
+const btn = document.createElement('button');
+btn.textContent = q.title.split('.')[0] + '.' + (q.title.includes('★') ? ' ★' : '');
+btn.setAttribute('data-idx', idx);
+btn.addEventListener('click', () => activateQuest(idx));
+navEl.appendChild(btn);
+
+// Section
+const section = document.createElement('div');
+section.className = 'quest-section';
+section.id = 'section-' + q.id;
+
+const codeId = 'code-' + q.id;
+const bodyId = 'body-' + q.id;
+const copyBtnId = 'copy-' + q.id;
+const explBtnId = 'expl-' + q.id;
+
+// Build code lines with explanations
+const codeLines = q.code.split('\n');
+let codeHtml = '';
+for(let i = 0; i < codeLines.length; i++){
+const exp = (q.explanations && q.explanations[i]) ? ' data-explain="' + q.explanations[i].replace(/"/g,'&quot;').replace(/'/g,'&#39;') + '"' : '';
+codeHtml += '<span class="code-line"' + exp + '>' + hl(escHtml(codeLines[i])) + '</span>\n';
+}
+
+let ioHtml = '';
+if(q.inputs.length && q.outputs.length){
+ioHtml = '<div class="io-example">';
+ioHtml += '<div class="io-box"><div class="io-label">STDIN:</div><pre>' + escHtml(q.inputs.join('\n')) + '</pre></div>';
+ioHtml += '<div class="io-box"><div class="io-label">STDOUT:</div><pre>' + escHtml(q.outputs.join('\n').replace(/\\n/g,'\n')) + '</pre></div>';
+ioHtml += '</div>';
+}
+
+let cmdHtml = '';
+q.commands.forEach(cmd => {
+cmdHtml += `<div class="cmd-block"><span class="cmd-label">$</span><code onclick="navigator.clipboard.writeText(this.textContent.trim());showToast();">${escHtml(cmd)}</code></div>`;
+});
+
+section.innerHTML = `
+<h2 class="q-title">${escHtml(q.title)}</h2>
+<div class="story">${escHtml(q.story)}</div>
+
+<div class="terminal">
+  <div class="terminal-header">
+    <span class="terminal-dot r"></span>
+    <span class="terminal-dot y"></span>
+    <span class="terminal-dot g"></span>
+    <span class="terminal-title">┌─ ${escHtml(q.filename)} ─┐</span>
+    <div class="terminal-actions">
+      <button id="${copyBtnId}" onclick="copyCode('${codeId}')">📋 Копировать</button>
+      <button id="${explBtnId}" onclick="toggleExplain('${explBtnId}','${bodyId}')">🦆 Объяснить код</button>
+    </div>
+  </div>
+  <div class="terminal-body" id="${bodyId}">
+    <pre id="${codeId}">${codeHtml}</pre>
+  </div>
+</div>
+
+<div class="info-box amber">
+  <strong>💡 Важно:</strong> Никаких глобальных переменных, goto, exit(). Один return из функции. Один выход из цикла. Макс. 42 строки на функцию. Вложенность ≤ 4.
+  ${q.id === 'q5' || q.id === 'q6' || q.id === 'q7' || q.id === 'q8' ? '<br><strong>⛔ stdlib.h запрещён!</strong>' : ''}
+</div>
+
+<h3 style="color:var(--amber);font-family:var(--font-pixel);font-size:11px;margin-top:16px;">📥 Ввод / Вывод:</h3>
+${ioHtml}
+
+<h3 style="color:var(--amber);font-family:var(--font-pixel);font-size:11px;margin-top:16px;">⌨️ Команды (кликни для копирования):</h3>
+${cmdHtml}
+
+<div class="info-box">
+  <strong>✅ Проверки:</strong><br>
+  • Стиль: <code>clang-format -n src/${escHtml(q.filename)}</code><br>
+  • Статический анализ: <code>cppcheck --enable=all --suppress=missingIncludeSystem src/${escHtml(q.filename)}</code><br>
+  • Push в ветку <code>develop</code>, работать в директории <code>src/</code>
+</div>
+`;
+container.appendChild(section);
+});
+
+function activateQuest(idx){
+document.querySelectorAll('.quest-section').forEach(s => s.classList.remove('active'));
+document.querySelectorAll('.quest-nav button').forEach(b => b.classList.remove('active'));
+const section = document.getElementById('section-' + quests[idx].id);
+if(section) section.classList.add('active');
+navEl.children[idx].classList.add('active');
+duckSay('Квест ' + (idx+1) + ': ' + quests[idx].story.substring(0, 80) + '...', 5000);
+}
+
+// Activate first quest by default
+setTimeout(() => activateQuest(0), 100);
+
+</script>
+</body>
+</html>
